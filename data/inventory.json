@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "activity_date": "2026-03-03",
+    "prev_registered": 88775861,
+    "registered": 0,
+    "prev_eligible": 268789512,
+    "eligible": 25815,
+    "prev_combined": 357565373,
+    "combined": 25815
+  }
+]
