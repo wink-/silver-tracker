@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>COMEX Silver Inventory Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3e;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --registered: #f59e0b;
+      --eligible: #38bdf8;
+      --combined: #a78bfa;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      color: var(--muted);
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 360px;
+    }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .stat-change {
+      font-size: 0.82rem;
+      margin-top: 0.3rem;
+    }
+
+    .up   { color: #4ade80; }
+    .down { color: #f87171; }
+    .flat { color: var(--muted); }
+
+    /* Table */
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      text-align: right;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    thead th:first-child { text-align: left; }
+
+    tbody td {
+      text-align: right;
+      padding: 0.55rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    tbody td:first-child { text-align: left; color: var(--muted); }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    .legend-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+
+    #status {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>COMEX Silver Inventory Tracker</h1>
+    <p>Daily depository data from CME Group &mdash; updated each trading day after 6pm ET</p>
+  </header>
+
+  <div id="status">Loading data&hellip;</div>
+
+  <div id="content" style="display:none">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label"><span class="legend-dot" style="background:var(--registered)"></span>Registered</div>
+        <div class="stat-value" id="stat-registered">—</div>
+        <div class="stat-change" id="chg-registered">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span class="legend-dot" style="background:var(--eligible)"></span>Eligible</div>
+        <div class="stat-value" id="stat-eligible">—</div>
+        <div class="stat-change" id="chg-eligible">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span class="legend-dot" style="background:var(--combined)"></span>Combined Total</div>
+        <div class="stat-value" id="stat-combined">—</div>
+        <div class="stat-change" id="chg-combined">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Inventory (troy oz)</h2>
+      <div class="chart-wrapper">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Last 30 Days</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Registered</th>
+              <th>Chg</th>
+              <th>Eligible</th>
+              <th>Chg</th>
+              <th>Combined</th>
+              <th>Chg</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fmt = n => n == null ? "—" : Number(n).toLocaleString();
+const fmtDelta = (cur, prev) => {
+  if (cur == null || prev == null) return { text: "—", cls: "flat" };
+  const d = cur - prev;
+  const sign = d > 0 ? "+" : "";
+  return {
+    text: `${sign}${Number(d).toLocaleString()}`,
+    cls: d > 0 ? "up" : d < 0 ? "down" : "flat"
+  };
+};
+
+async function load() {
+  try {
+    const res = await fetch("data/inventory.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+
+    if (!Array.isArray(raw) || raw.length === 0) {
+      document.getElementById("status").textContent = "No data yet — check back after the first trading day.";
+      return;
+    }
+
+    // Sort ascending by date
+    const data = [...raw].sort((a, b) => a.activity_date.localeCompare(b.activity_date));
+    const latest = data[data.length - 1];
+
+    // Stats
+    ["registered", "eligible", "combined"].forEach(k => {
+      document.getElementById(`stat-${k}`).textContent = fmt(latest[k]);
+      const delta = fmtDelta(latest[k], latest[`prev_${k}`]);
+      const el = document.getElementById(`chg-${k}`);
+      el.textContent = delta.text;
+      el.className = `stat-change ${delta.cls}`;
+    });
+
+    // Chart — use all data
+    const labels = data.map(d => d.activity_date);
+    const chartCanvas = document.getElementById("chart");
+    new Chart(chartCanvas, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Registered",
+            data: data.map(d => d.registered),
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--registered").trim() || "#f59e0b",
+            backgroundColor: "transparent",
+            tension: 0.3,
+            pointRadius: data.length > 60 ? 0 : 3,
+            borderWidth: 2,
+          },
+          {
+            label: "Eligible",
+            data: data.map(d => d.eligible),
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--eligible").trim() || "#38bdf8",
+            backgroundColor: "transparent",
+            tension: 0.3,
+            pointRadius: data.length > 60 ? 0 : 3,
+            borderWidth: 2,
+          },
+          {
+            label: "Combined",
+            data: data.map(d => d.combined),
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--combined").trim() || "#a78bfa",
+            backgroundColor: "transparent",
+            tension: 0.3,
+            pointRadius: data.length > 60 ? 0 : 3,
+            borderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#8892a4", boxWidth: 12 },
+          },
+          tooltip: {
+            backgroundColor: "#1a1d27",
+            borderColor: "#2a2d3e",
+            borderWidth: 1,
+            titleColor: "#e2e8f0",
+            bodyColor: "#e2e8f0",
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: "#8892a4",
+              maxTicksLimit: 12,
+              maxRotation: 45,
+            },
+            grid: { color: "#1e2130" },
+          },
+          y: {
+            ticks: {
+              color: "#8892a4",
+              callback: v => {
+                if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+                if (v >= 1e6) return (v / 1e6).toFixed(0) + "M";
+                return v.toLocaleString();
+              },
+            },
+            grid: { color: "#1e2130" },
+          },
+        },
+      },
+    });
+
+    // Table — last 30 in descending order
+    const tbody = document.getElementById("table-body");
+    const rows = data.slice(-30).reverse();
+    rows.forEach((row, i) => {
+      const prev = rows[i + 1]; // one row earlier in time (next in reversed array)
+      const tr = document.createElement("tr");
+      ["registered", "eligible", "combined"].forEach(k => {
+        const d = prev ? fmtDelta(row[k], prev[k]) : { text: "—", cls: "flat" };
+        const tdVal = `<td>${fmt(row[k])}</td>`;
+        const tdChg = `<td class="${d.cls}">${d.text}</td>`;
+        tr.innerHTML += tdVal + tdChg;
+      });
+      tr.innerHTML = `<td>${row.activity_date}</td>` + tr.innerHTML;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("status").style.display = "none";
+    document.getElementById("content").style.display = "block";
+  } catch (err) {
+    document.getElementById("status").textContent = `Error loading data: ${err.message}`;
+    console.error(err);
+  }
+}
+
+load();
+</script>
+</body>
+</html>
