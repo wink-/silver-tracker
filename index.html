@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>COMEX Silver Inventory Tracker</title>
+  <title>COMEX Precious Metals Inventory</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,9 +14,12 @@
       --border: #2a2d3e;
       --text: #e2e8f0;
       --muted: #8892a4;
-      --registered: #f59e0b;
-      --eligible: #38bdf8;
-      --combined: #a78bfa;
+      --gold-registered: #f59e0b;
+      --gold-eligible:   #fcd34d;
+      --gold-combined:   #fbbf24;
+      --silver-registered: #60a5fa;
+      --silver-eligible:   #38bdf8;
+      --silver-combined:   #a78bfa;
     }
 
     body {
@@ -27,50 +30,43 @@
       padding: 2rem 1rem;
     }
 
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    header { margin-bottom: 1.75rem; }
+    header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+    header p { color: var(--muted); margin-top: 0.4rem; font-size: 0.9rem; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
     }
 
-    header {
-      margin-bottom: 2rem;
-    }
-
-    header h1 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-
-    header p {
+    .tab-btn {
+      background: none;
+      border: none;
       color: var(--muted);
-      margin-top: 0.4rem;
-      font-size: 0.9rem;
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .card h2 {
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 600;
-      margin-bottom: 1.25rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      padding: 0.6rem 1.25rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
     }
 
-    .chart-wrapper {
-      position: relative;
-      height: 360px;
-    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--text); }
+    .tab-btn.gold.active  { color: #fbbf24; border-bottom-color: #fbbf24; }
+    .tab-btn.silver.active { color: #60a5fa; border-bottom-color: #60a5fa; }
 
-    /* Stats row */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Stats */
     .stats {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -85,79 +81,38 @@
       padding: 1.25rem 1.5rem;
     }
 
-    .stat-label {
-      font-size: 0.78rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.5rem;
-    }
+    .stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat-change { font-size: 0.82rem; margin-top: 0.3rem; }
 
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-    }
-
-    .stat-change {
-      font-size: 0.82rem;
-      margin-top: 0.3rem;
-    }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 
     .up   { color: #4ade80; }
     .down { color: #f87171; }
     .flat { color: var(--muted); }
 
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .card h2 { font-size: 0.85rem; font-weight: 600; margin-bottom: 1.25rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .chart-wrapper { position: relative; height: 360px; }
+
     /* Table */
-    .table-scroll {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.88rem;
-    }
-
-    thead th {
-      text-align: right;
-      padding: 0.6rem 1rem;
-      border-bottom: 1px solid var(--border);
-      color: var(--muted);
-      font-weight: 500;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      white-space: nowrap;
-    }
-
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead th { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
     thead th:first-child { text-align: left; }
-
-    tbody td {
-      text-align: right;
-      padding: 0.55rem 1rem;
-      border-bottom: 1px solid var(--border);
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-
+    tbody td { text-align: right; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
     tbody td:first-child { text-align: left; color: var(--muted); }
-
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover { background: rgba(255,255,255,0.03); }
 
-    .legend-dot {
-      display: inline-block;
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      margin-right: 5px;
-    }
-
-    #status {
-      color: var(--muted);
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 3rem;
-    }
+    #status-gold, #status-silver { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 3rem; }
 
     @media (max-width: 600px) {
       .stats { grid-template-columns: 1fr; }
@@ -167,108 +122,169 @@
 <body>
 <div class="container">
   <header>
-    <h1>COMEX Silver Inventory Tracker</h1>
+    <h1>COMEX Precious Metals Inventory</h1>
     <p>Daily depository data from CME Group &mdash; updated each trading day after 6pm ET</p>
   </header>
 
-  <div id="status">Loading data&hellip;</div>
+  <div class="tabs">
+    <button class="tab-btn gold active" onclick="switchTab('gold')">Gold</button>
+    <button class="tab-btn silver" onclick="switchTab('silver')">Silver</button>
+  </div>
 
-  <div id="content" style="display:none">
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-label"><span class="legend-dot" style="background:var(--registered)"></span>Registered</div>
-        <div class="stat-value" id="stat-registered">—</div>
-        <div class="stat-change" id="chg-registered">—</div>
+  <!-- GOLD PANEL -->
+  <div id="panel-gold" class="tab-panel active">
+    <div id="status-gold">Loading gold data&hellip;</div>
+    <div id="content-gold" style="display:none">
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--gold-registered)"></span>Registered</div>
+          <div class="stat-value" id="gold-stat-registered">—</div>
+          <div class="stat-change" id="gold-chg-registered">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--gold-eligible)"></span>Eligible</div>
+          <div class="stat-value" id="gold-stat-eligible">—</div>
+          <div class="stat-change" id="gold-chg-eligible">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--gold-combined)"></span>Combined Total</div>
+          <div class="stat-value" id="gold-stat-combined">—</div>
+          <div class="stat-change" id="gold-chg-combined">—</div>
+        </div>
       </div>
-      <div class="stat">
-        <div class="stat-label"><span class="legend-dot" style="background:var(--eligible)"></span>Eligible</div>
-        <div class="stat-value" id="stat-eligible">—</div>
-        <div class="stat-change" id="chg-eligible">—</div>
+      <div class="card">
+        <h2>Gold Inventory (troy oz)</h2>
+        <div class="chart-wrapper"><canvas id="gold-chart"></canvas></div>
       </div>
-      <div class="stat">
-        <div class="stat-label"><span class="legend-dot" style="background:var(--combined)"></span>Combined Total</div>
-        <div class="stat-value" id="stat-combined">—</div>
-        <div class="stat-change" id="chg-combined">—</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Inventory (troy oz)</h2>
-      <div class="chart-wrapper">
-        <canvas id="chart"></canvas>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Last 30 Days</h2>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
+      <div class="card">
+        <h2>Last 30 Days</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
               <th>Date</th>
-              <th>Registered</th>
-              <th>Chg</th>
-              <th>Eligible</th>
-              <th>Chg</th>
-              <th>Combined</th>
-              <th>Chg</th>
-            </tr>
-          </thead>
-          <tbody id="table-body"></tbody>
-        </table>
+              <th>Registered</th><th>Chg</th>
+              <th>Eligible</th><th>Chg</th>
+              <th>Combined</th><th>Chg</th>
+            </tr></thead>
+            <tbody id="gold-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SILVER PANEL -->
+  <div id="panel-silver" class="tab-panel">
+    <div id="status-silver">Loading silver data&hellip;</div>
+    <div id="content-silver" style="display:none">
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--silver-registered)"></span>Registered</div>
+          <div class="stat-value" id="silver-stat-registered">—</div>
+          <div class="stat-change" id="silver-chg-registered">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--silver-eligible)"></span>Eligible</div>
+          <div class="stat-value" id="silver-stat-eligible">—</div>
+          <div class="stat-change" id="silver-chg-eligible">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="legend-dot" style="background:var(--silver-combined)"></span>Combined Total</div>
+          <div class="stat-value" id="silver-stat-combined">—</div>
+          <div class="stat-change" id="silver-chg-combined">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Silver Inventory (troy oz)</h2>
+        <div class="chart-wrapper"><canvas id="silver-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Last 30 Days</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Date</th>
+              <th>Registered</th><th>Chg</th>
+              <th>Eligible</th><th>Chg</th>
+              <th>Combined</th><th>Chg</th>
+            </tr></thead>
+            <tbody id="silver-table-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-const fmt = n => n == null ? "—" : Number(n).toLocaleString();
-const fmtDelta = (cur, prev) => {
+const COLORS = {
+  gold:   { registered: "#f59e0b", eligible: "#fcd34d", combined: "#fbbf24" },
+  silver: { registered: "#60a5fa", eligible: "#38bdf8", combined: "#a78bfa" },
+};
+
+const charts = {};
+
+function switchTab(metal) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelector(`.tab-btn.${metal}`).classList.add("active");
+  document.getElementById(`panel-${metal}`).classList.add("active");
+}
+
+function fmt(n, isFloat) {
+  if (n == null) return "—";
+  return isFloat
+    ? Number(n).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+    : Number(n).toLocaleString();
+}
+
+function fmtDelta(cur, prev, isFloat) {
   if (cur == null || prev == null) return { text: "—", cls: "flat" };
   const d = cur - prev;
   const sign = d > 0 ? "+" : "";
-  return {
-    text: `${sign}${Number(d).toLocaleString()}`,
-    cls: d > 0 ? "up" : d < 0 ? "down" : "flat"
-  };
-};
+  const text = isFloat
+    ? `${sign}${d.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`
+    : `${sign}${Math.round(d).toLocaleString()}`;
+  return { text, cls: d > 0 ? "up" : d < 0 ? "down" : "flat" };
+}
 
-async function load() {
+async function loadMetal(metal, isFloat) {
   try {
-    const res = await fetch("data/inventory.json");
+    const res = await fetch(`data/${metal}_inventory.json`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.json();
 
     if (!Array.isArray(raw) || raw.length === 0) {
-      document.getElementById("status").textContent = "No data yet — check back after the first trading day.";
+      document.getElementById(`status-${metal}`).textContent =
+        "No data yet — check back after the first trading day.";
       return;
     }
 
-    // Sort ascending by date
     const data = [...raw].sort((a, b) => a.activity_date.localeCompare(b.activity_date));
     const latest = data[data.length - 1];
+    const colors = COLORS[metal];
 
     // Stats
     ["registered", "eligible", "combined"].forEach(k => {
-      document.getElementById(`stat-${k}`).textContent = fmt(latest[k]);
-      const delta = fmtDelta(latest[k], latest[`prev_${k}`]);
-      const el = document.getElementById(`chg-${k}`);
+      document.getElementById(`${metal}-stat-${k}`).textContent = fmt(latest[k], isFloat);
+      const delta = fmtDelta(latest[k], latest[`prev_${k}`], isFloat);
+      const el = document.getElementById(`${metal}-chg-${k}`);
       el.textContent = delta.text;
       el.className = `stat-change ${delta.cls}`;
     });
 
-    // Chart — use all data
-    const labels = data.map(d => d.activity_date);
-    const chartCanvas = document.getElementById("chart");
-    new Chart(chartCanvas, {
+    // Chart
+    const canvas = document.getElementById(`${metal}-chart`);
+    if (charts[metal]) charts[metal].destroy();
+    charts[metal] = new Chart(canvas, {
       type: "line",
       data: {
-        labels,
+        labels: data.map(d => d.activity_date),
         datasets: [
           {
             label: "Registered",
             data: data.map(d => d.registered),
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--registered").trim() || "#f59e0b",
+            borderColor: colors.registered,
             backgroundColor: "transparent",
             tension: 0.3,
             pointRadius: data.length > 60 ? 0 : 3,
@@ -277,7 +293,7 @@ async function load() {
           {
             label: "Eligible",
             data: data.map(d => d.eligible),
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--eligible").trim() || "#38bdf8",
+            borderColor: colors.eligible,
             backgroundColor: "transparent",
             tension: 0.3,
             pointRadius: data.length > 60 ? 0 : 3,
@@ -286,7 +302,7 @@ async function load() {
           {
             label: "Combined",
             data: data.map(d => d.combined),
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--combined").trim() || "#a78bfa",
+            borderColor: colors.combined,
             backgroundColor: "transparent",
             tension: 0.3,
             pointRadius: data.length > 60 ? 0 : 3,
@@ -299,9 +315,7 @@ async function load() {
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: {
-            labels: { color: "#8892a4", boxWidth: 12 },
-          },
+          legend: { labels: { color: "#8892a4", boxWidth: 12 } },
           tooltip: {
             backgroundColor: "#1a1d27",
             borderColor: "#2a2d3e",
@@ -309,17 +323,13 @@ async function load() {
             titleColor: "#e2e8f0",
             bodyColor: "#e2e8f0",
             callbacks: {
-              label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
+              label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y, isFloat)}`,
             },
           },
         },
         scales: {
           x: {
-            ticks: {
-              color: "#8892a4",
-              maxTicksLimit: 12,
-              maxRotation: 45,
-            },
+            ticks: { color: "#8892a4", maxTicksLimit: 12, maxRotation: 45 },
             grid: { color: "#1e2130" },
           },
           y: {
@@ -327,7 +337,7 @@ async function load() {
               color: "#8892a4",
               callback: v => {
                 if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
-                if (v >= 1e6) return (v / 1e6).toFixed(0) + "M";
+                if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
                 return v.toLocaleString();
               },
             },
@@ -337,31 +347,31 @@ async function load() {
       },
     });
 
-    // Table — last 30 in descending order
-    const tbody = document.getElementById("table-body");
+    // Table — last 30 descending
+    const tbody = document.getElementById(`${metal}-table-body`);
     const rows = data.slice(-30).reverse();
     rows.forEach((row, i) => {
-      const prev = rows[i + 1]; // one row earlier in time (next in reversed array)
+      const prev = rows[i + 1];
       const tr = document.createElement("tr");
+      let inner = `<td>${row.activity_date}</td>`;
       ["registered", "eligible", "combined"].forEach(k => {
-        const d = prev ? fmtDelta(row[k], prev[k]) : { text: "—", cls: "flat" };
-        const tdVal = `<td>${fmt(row[k])}</td>`;
-        const tdChg = `<td class="${d.cls}">${d.text}</td>`;
-        tr.innerHTML += tdVal + tdChg;
+        const d = prev ? fmtDelta(row[k], prev[k], isFloat) : { text: "—", cls: "flat" };
+        inner += `<td>${fmt(row[k], isFloat)}</td><td class="${d.cls}">${d.text}</td>`;
       });
-      tr.innerHTML = `<td>${row.activity_date}</td>` + tr.innerHTML;
+      tr.innerHTML = inner;
       tbody.appendChild(tr);
     });
 
-    document.getElementById("status").style.display = "none";
-    document.getElementById("content").style.display = "block";
+    document.getElementById(`status-${metal}`).style.display = "none";
+    document.getElementById(`content-${metal}`).style.display = "block";
   } catch (err) {
-    document.getElementById("status").textContent = `Error loading data: ${err.message}`;
+    document.getElementById(`status-${metal}`).textContent = `Error loading data: ${err.message}`;
     console.error(err);
   }
 }
 
-load();
+loadMetal("gold", true);
+loadMetal("silver", false);
 </script>
 </body>
 </html>

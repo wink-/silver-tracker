@@ -1,4 +1,4 @@
-name: Fetch COMEX Silver Inventory
+name: Fetch COMEX Precious Metals Inventory
 
 on:
   schedule:
@@ -25,19 +25,21 @@ jobs:
       - name: Install dependencies
         run: pip install requests xlrd
 
-      - name: Fetch and parse silver data
-        run: python scripts/fetch_silver.py
+      - name: Fetch silver inventory
+        run: python scripts/fetch_metal.py --metal silver
+
+      - name: Fetch gold inventory
+        run: python scripts/fetch_metal.py --metal gold
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/inventory.json data/archives/
-          # Only commit if there are staged changes
+          git add data/
           if git diff --cached --quiet; then
             echo "No new data to commit."
           else
             DATE=$(date -u +%Y-%m-%d)
-            git commit -m "data: add silver inventory for ${DATE}"
+            git commit -m "data: add precious metals inventory for ${DATE}"
             git push
           fi
