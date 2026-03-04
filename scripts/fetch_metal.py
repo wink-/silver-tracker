@@ -4,6 +4,7 @@
 import argparse
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -14,16 +15,19 @@ METALS = {
     "silver": {
         "url": "https://www.cmegroup.com/delivery_reports/Silver_stocks.xls",
         "filename": "Silver_stocks.xls",
-        "integer_values": True,   # silver reported as whole troy oz
+        "integer_values": True,
     },
     "gold": {
         "url": "https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls",
         "filename": "Gold_Stocks.xls",
-        "integer_values": False,  # gold reported as fractional troy oz
+        "integer_values": False,
     },
 }
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+MAX_RETRIES = 3
+RETRY_DELAY = 10  # seconds between retries
 
 
 def download_xls(url: str, dest_path: Path) -> None:
@@ -34,14 +38,39 @@ def download_xls(url: str, dest_path: Path) -> None:
             "Chrome/120.0.0.0 Safari/537.36"
         )
     }
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    dest_path.write_bytes(response.content)
-    print(f"Downloaded {len(response.content):,} bytes → {dest_path}")
+
+    last_exc = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+            dest_path.write_bytes(response.content)
+            print(f"Downloaded {len(response.content):,} bytes → {dest_path}")
+            return
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            print(f"Attempt {attempt}/{MAX_RETRIES} failed: {e}")
+            if attempt < MAX_RETRIES:
+                print(f"Retrying in {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+
+    # Clean up any partial file before raising
+    if dest_path.exists():
+        dest_path.unlink()
+        print(f"Removed partial file: {dest_path}")
+
+    raise RuntimeError(f"Failed to download {url} after {MAX_RETRIES} attempts: {last_exc}") from last_exc
 
 
 def parse_xls(xls_path: Path, integer_values: bool) -> dict:
-    wb = xlrd.open_workbook(str(xls_path))
+    try:
+        wb = xlrd.open_workbook(str(xls_path))
+    except xlrd.XLRDError as e:
+        raise RuntimeError(
+            f"Could not open {xls_path.name} as a valid XLS file. "
+            f"The server may have returned an error page. Details: {e}"
+        ) from e
+
     ws = wb.sheet_by_index(0)
 
     # Find activity date
@@ -50,7 +79,6 @@ def parse_xls(xls_path: Path, integer_values: bool) -> dict:
         for col_idx in range(ws.ncols):
             cell = ws.cell_value(row_idx, col_idx)
             if isinstance(cell, str) and "activity date" in cell.lower():
-                # Date may be in same cell as "Activity Date: MM/DD/YYYY"
                 import re
                 m = re.search(r"(\d{1,2}/\d{1,2}/\d{4})", cell)
                 if m:
@@ -58,7 +86,6 @@ def parse_xls(xls_path: Path, integer_values: bool) -> dict:
                     dt = datetime.strptime(m.group(1), "%m/%d/%Y")
                     activity_date = dt.strftime("%Y-%m-%d")
                     break
-                # Or in a neighboring cell as a float (Excel date serial)
                 for c in range(col_idx + 1, ws.ncols):
                     val = ws.cell_value(row_idx, c)
                     if isinstance(val, float) and val > 0:
@@ -77,7 +104,6 @@ def parse_xls(xls_path: Path, integer_values: bool) -> dict:
         activity_date = date.today().isoformat()
         print(f"Warning: could not find activity date, using {activity_date}")
 
-    # Labels to find (lowercase substring match)
     targets = {
         "total registered": "registered",
         "total pledged":    "pledged",
@@ -106,10 +132,9 @@ def parse_xls(xls_path: Path, integer_values: bool) -> dict:
                         cv = coerce(v)
                         if cv is not None:
                             nums.append(cv)
-                    # Columns: PREV TOTAL, RECEIVED, WITHDRAWN, NET CHANGE, ADJUSTMENT, TOTAL TODAY
                     if len(nums) >= 2:
                         result[f"prev_{key}"] = nums[0]
-                        result[key] = nums[-1]  # last numeric = TOTAL TODAY
+                        result[key] = nums[-1]
                     elif len(nums) == 1:
                         result[key] = nums[0]
                     break
@@ -117,7 +142,11 @@ def parse_xls(xls_path: Path, integer_values: bool) -> dict:
     required = ["registered", "eligible", "combined"]
     missing = [k for k in required if k not in result]
     if missing:
-        raise ValueError(f"Failed to parse fields: {missing}")
+        raise ValueError(
+            f"Failed to parse required fields: {missing}. "
+            f"The spreadsheet format may have changed. "
+            f"Fields found: {list(result.keys())}"
+        )
 
     return result
 
@@ -155,10 +184,21 @@ def main():
     tmp_path = archives_dir / f"{today_str}_{cfg['filename']}"
 
     print(f"[{args.metal.upper()}] Downloading {cfg['url']} ...")
-    download_xls(cfg["url"], tmp_path)
+    try:
+        download_xls(cfg["url"], tmp_path)
+    except RuntimeError as e:
+        print(f"ERROR: Download failed — {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"[{args.metal.upper()}] Parsing XLS ...")
-    record = parse_xls(tmp_path, cfg["integer_values"])
+    try:
+        record = parse_xls(tmp_path, cfg["integer_values"])
+    except (RuntimeError, ValueError) as e:
+        print(f"ERROR: Parse failed — {e}", file=sys.stderr)
+        # Keep the archive file so it can be inspected manually
+        print(f"Archive kept for inspection: {tmp_path}", file=sys.stderr)
+        sys.exit(2)
+
     print(f"Parsed: {record}")
 
     activity_date = record["activity_date"]
