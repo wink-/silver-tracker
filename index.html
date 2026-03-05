@@ -276,6 +276,15 @@ async function loadMetal(metal, isFloat) {
     // Chart
     const canvas = document.getElementById(`${metal}-chart`);
     if (charts[metal]) charts[metal].destroy();
+    const ptRadius = data.length > 60 ? 0 : 3;
+    const axisTick = color => ({
+      color,
+      callback: v => {
+        if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+        if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+        return v.toLocaleString();
+      },
+    });
     charts[metal] = new Chart(canvas, {
       type: "line",
       data: {
@@ -287,8 +296,9 @@ async function loadMetal(metal, isFloat) {
             borderColor: colors.registered,
             backgroundColor: "transparent",
             tension: 0.3,
-            pointRadius: data.length > 60 ? 0 : 3,
+            pointRadius: ptRadius,
             borderWidth: 2,
+            yAxisID: "yLeft",
           },
           {
             label: "Eligible",
@@ -296,17 +306,9 @@ async function loadMetal(metal, isFloat) {
             borderColor: colors.eligible,
             backgroundColor: "transparent",
             tension: 0.3,
-            pointRadius: data.length > 60 ? 0 : 3,
+            pointRadius: ptRadius,
             borderWidth: 2,
-          },
-          {
-            label: "Combined",
-            data: data.map(d => d.combined),
-            borderColor: colors.combined,
-            backgroundColor: "transparent",
-            tension: 0.3,
-            pointRadius: data.length > 60 ? 0 : 3,
-            borderWidth: 2,
+            yAxisID: "yRight",
           },
         ],
       },
@@ -332,16 +334,19 @@ async function loadMetal(metal, isFloat) {
             ticks: { color: "#8892a4", maxTicksLimit: 12, maxRotation: 45 },
             grid: { color: "#1e2130" },
           },
-          y: {
-            ticks: {
-              color: "#8892a4",
-              callback: v => {
-                if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
-                if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
-                return v.toLocaleString();
-              },
-            },
+          yLeft: {
+            type: "linear",
+            position: "left",
+            ticks: axisTick(colors.registered),
             grid: { color: "#1e2130" },
+            title: { display: true, text: "Registered", color: colors.registered, font: { size: 11 } },
+          },
+          yRight: {
+            type: "linear",
+            position: "right",
+            ticks: axisTick(colors.eligible),
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: "Eligible", color: colors.eligible, font: { size: 11 } },
           },
         },
       },
