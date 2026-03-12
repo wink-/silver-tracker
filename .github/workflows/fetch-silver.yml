@@ -2,8 +2,8 @@ name: Fetch COMEX Precious Metals Inventory
 
 on:
   schedule:
-    # 23:00 UTC = 6pm ET — after CME typically posts daily data (weekdays only)
-    - cron: "0 23 * * 1-5"
+    # 03:00 UTC = 11pm ET — after CME typically posts daily data (Tuesday through Saturday)
+    - cron: "0 3 * * 2-6"
   workflow_dispatch:  # allow manual trigger for testing
 
 jobs:
