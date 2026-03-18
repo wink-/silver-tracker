@@ -97,5 +97,16 @@
     "eligible": 15723764.613,
     "prev_combined": 32551562.171,
     "combined": 32396397.809
+  },
+  {
+    "activity_date": "2026-03-16",
+    "prev_registered": 16672633.196,
+    "registered": 16760534.752,
+    "prev_pledged": 1746898.591,
+    "pledged": 1746898.591,
+    "prev_eligible": 15723764.613,
+    "eligible": 15475540.307,
+    "prev_combined": 32396397.809,
+    "combined": 32236075.059
   }
 ]
