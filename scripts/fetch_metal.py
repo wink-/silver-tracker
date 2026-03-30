@@ -35,14 +35,27 @@ def download_xls(url: str, dest_path: Path) -> None:
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://www.cmegroup.com/",
+        "Connection": "keep-alive",
     }
+
+    session = requests.Session()
+    session.headers.update(headers)
+
+    # Prime the session with a visit to the CME homepage to get cookies
+    try:
+        session.get("https://www.cmegroup.com/", timeout=15)
+    except requests.exceptions.RequestException:
+        pass  # Best-effort; proceed anyway
 
     last_exc = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.get(url, headers=headers, timeout=30)
+            response = session.get(url, timeout=30)
             response.raise_for_status()
             dest_path.write_bytes(response.content)
             print(f"Downloaded {len(response.content):,} bytes → {dest_path}")
